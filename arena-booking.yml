@@ -1,0 +1,3116 @@
+openapi: 3.0.0
+
+info:
+  version: '1.0.0'
+  title: 'Arena Booking API'
+
+servers:
+  - url: https://api.belong.gg
+    description: prd
+    variables: { }
+  - url: https://stg-api.belong.gg
+    description: stg
+    variables: { }
+  - url: https://qa-api.belong.gg
+    description: qa
+    variables: { }
+  - url: https://dev-api.belong.gg
+    description: dev
+    variables: { }
+
+paths:
+  /bookings/availability:
+    get:
+      summary: Get seat availability
+      operationId: getAvailability
+      description: |-
+        Returns seat availability for the requested arena, dates and seat count.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      parameters:
+        - in: query
+          name: arenaId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+          description: Arena ID
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+          required: true
+          example: 2021-10-10
+          description: Booking date - must be in the future
+        - in: query
+          name: seatCount
+          schema:
+            type: integer
+            default: 1
+          required: false
+          example: 2021-10-10
+          description: Number of seats in the booking
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAvailabilityResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        '404':
+          description: NotFound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/calculate:
+    get:
+      summary: Calculate booking price breakdown
+      operationId: calculate
+      description: |-
+        Deprecated. Use Create Booking instead.
+        
+        Returns a pricing breakdown for the given booking parameters.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      parameters:
+        - in: query
+          name: bookingId
+          schema:
+            type: string
+            format: uuid
+          required: false
+          example: 7cad3e16-ffb3-4f84-b768-ebc50b0a218a
+          description: Booking ID - optional if calling this endpoint the first time during booking flow
+        - in: query
+          name: bookingType
+          schema:
+            type: string
+            default: stations
+            enum:
+              - stations
+              - maintenance
+          required: false
+          example: stations
+          description: Booking type for the seat
+        - in: query
+          name: arenaId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+          description: Arena ID
+        - in: query
+          name: fromTime
+          schema:
+            type: string
+            format: date-time
+          required: true
+          example: 2021-06-12T10:00:00.000Z
+          description: Booking start time
+        - in: query
+          name: toTime
+          schema:
+            type: string
+            format: date-time
+          required: true
+          example: 2021-06-12T10:00:00.000Z
+          description: Booking end time
+        - in: query
+          name: seatCount
+          schema:
+            type: integer
+            default: 1
+          required: false
+          example: 2021-10-10
+          description: Number of seats in the booking
+        - in: query
+          name: orderId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: d3613add-95d9-4520-b826-414979dcdbe5
+          description: Order ID - optional if calling this endpoint the first time during booking flow
+        - in: query
+          name: locationId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: L0611V96XE3TS
+          description: Square location id for arena
+        - in: query
+          name: useMembership
+          schema:
+            type: boolean
+            default: false
+          required: false
+          example: true
+          description: Apply membership benefits (if available) when calculating booking pricing
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/create:
+    post:
+      summary: Create booking
+      operationId: createBooking
+      description: |-
+        Creates a booking for the requested booking parameters. Consumers may repeatedly call this
+        endpoint, preserving identifiers (booking id, seat reservation id, order id) received from 
+        the first call, in  order to allow an end user to tweak booking parameters (date, seat 
+        count, etc.).
+        
+        Upon first call (and booking creation), authenticated calling user will become the booking
+        owner. Refer to Set Booking Owner endpoint for information regarding owner switching.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/confirm:
+    post:
+      summary: Confirm booking
+      operationId: confirmBooking
+      description: |-
+        Pay for booking, and if successful mark the booking as Confirmed.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/ConfirmBookingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/{id}:
+    get:
+      summary: Retrieve booking by Id
+      operationId: getBookingById
+      description: |-
+        Returns a booking by id. User must be a booking owner, invited to the booking, or 
+        Staff/Admin user.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking Id
+          required: true
+          example: 3c27d574-3760-4387-843c-4aa9acbfaec9
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+    patch:
+      summary: Update booking
+      operationId: updateBooking
+      description: |-
+        Update a booking in order to extend/shorten time or add/remove seats.
+
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking Id
+          required: true
+          example: 3c27d574-3760-4387-843c-4aa9acbfaec9
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/SeatReservationRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings:
+    get:
+      summary: Retrieve current user bookings
+      operationId: getCurrentUserBookings
+      description: |-
+        Returns paginated listing of bookings that the current user owns or is invited to.
+        
+        Intended for use by the public.
+        
+        Calling user must be authenticated.
+      parameters:
+        - in: query
+          name: status
+          description: Booking status to filter for
+          required: true
+          example: confirmed
+          schema:
+            type: string
+            enum:
+              - confirmed
+              - checkedIn
+              - completed
+              - cancelled
+        - in: query
+          name: date
+          description: Booking date or date-time to start listing from
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: 2021-06-12
+        - in: query
+          name: paginationToken
+          description: Token used to retrieve next page of results
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/BookingListing'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/user/{userId}:
+    get:
+      summary: Retrieve all bookings for a specific user
+      operationId: getUserBookings
+      description: |-
+        Returns all bookings that the specified user owns or is invited to.
+        
+        Intended for use by Staff/Admins.
+        
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: userId
+          description: User Id to retrieve bookings for
+          required: true
+          example: 437d3b3b-1861-4ea1-8033-77fd147f7823
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/note:
+    post:
+      summary: Set a note on a booking
+      operationId: addBookingNote
+      description: |-
+        Sets a note on the booking
+        
+        Intended for use by Staff/Admins.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingNoteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/maintenance-reason:
+    post:
+      summary: Set a maintenance reason on a booking
+      operationId: addBookingMaintenanceReason
+      description: |-
+        Sets a maintenance reason on the booking
+        
+        Intended for use by Staff/Admins.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingMaintenanceRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/invite:
+    post:
+      summary: Invite users to a booking
+      operationId: inviteUsers
+      description: |-
+        Invites users to a booking by email.
+        
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingInviteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/uninvite:
+    post:
+      summary: Uninvite users from a booking
+      operationId: uninviteUsers
+      description: |-
+        Uninvites users from a booking by email.
+        
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingUninviteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/{id}/abandon:
+    post:
+      summary: Abandon a booking
+      operationId: abandonBooking
+      description: |-
+        Abandons a booking and releases seat reservation hold.
+        
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking id to abandon
+          required: true
+          example: 437d3b3b-1861-4ea1-8033-77fd147f7823
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/accept-invite:
+    post:
+      summary: Accept a booking invite
+      operationId: acceptInvite
+      description: |-
+        Marks a booking invite as accepted by the calling user for the specified booking id.
+
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingInviteAcknowledgeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/decline-invite:
+    post:
+      summary: Decline a booking invite
+      operationId: declineInvite
+      description: |-
+        Marks a booking invite as declined by the calling user for the specified booking id.
+
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingInviteAcknowledgeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/cancel:
+    post:
+      summary: Cancel a booking
+      operationId: cancelBooking
+      description: |-
+        Cancel a booking, releasing the occupied seats, and issuing a refund to the booking owner
+        if the booking start time is more than 24 hours away.
+
+        Intended for use by the public.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/BookingCancellationRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/{id}/checkin:
+    post:
+      summary: Check in a booking
+      operationId: checkInBooking
+      description: |-
+        Check in a booking.
+
+        Intended for use by the Staff/Admin.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking Id
+          required: true
+          example: 3c27d574-3760-4387-843c-4aa9acbfaec9
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/{id}/complete:
+    post:
+      summary: Complete a booking
+      operationId: completeBooking
+      description: |-
+        Marks a booking as completed.
+
+        Intended for use by the Staff/Admin.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking Id
+          required: true
+          example: 3c27d574-3760-4387-843c-4aa9acbfaec9
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/validate-session:
+    get:
+      summary: Validate a booking session
+      operationId: validateSession
+      description: |-
+        Deprecated. Validate session for the calling user/booking/seat on a specific date.
+
+        Intended for use by the the public.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: query
+          name: arenaId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+          description: Arena ID
+        - in: query
+          name: macAddress
+          schema:
+            type: string
+          required: true
+          example: 001B44113AB7
+          description: Seat MAC Address
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidateBooking'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/arena:
+    get:
+      summary: Retrieve bookings for an Arena
+      operationId: getBookingsByArena
+      description: |-
+        Retrieve bookings by arena and date.
+
+        Intended for use by the the Staff/Admins.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: query
+          name: arenaId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+          description: Arena ID
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+          required: true
+          example: 2021-06-12T10:00:00.000Z
+          description: Booking date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArenaBookingsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/owner:
+    post:
+      summary: Set booking owner.
+      operationId: setBookingOwner
+      description: |-
+        Set the booking owner to a different user.
+
+        Intended for use by the the Staff/Admins.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/SetBookingOwnerRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/discount:
+    post:
+      summary: Add booking discount
+      operationId: addBookingDiscount
+      description: |-
+        Add a discount to the specified booking using a discount code.
+
+        Intended for use by Staff/Admins.
+
+        Calling user must be authenticated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/AddBookingDiscountRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+  /bookings/{id}/discount:
+    delete:
+      summary: Remove booking discount
+      operationId: removeBookingDiscount
+      description: |-
+        Remove booking discount by id for the specified booking id.
+
+        Intended for use by Staff/Admins.
+
+        Calling user must be authenticated.
+      parameters:
+        - in: path
+          name: id
+          description: Booking id to remove discount from
+          required: true
+          example: 437d3b3b-1861-4ea1-8033-77fd147f7823
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/RemoveBookingDiscountRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingDetail'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthenticatedError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenError'
+        default:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalServerError'
+
+components:
+  schemas:
+    # ERRORS
+    SubError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        category:
+          type: string
+          example: AUTHENTICATION_ERROR
+        message:
+          type: string
+          example: This request could not be authenticated.
+        code:
+          type: string
+          example: UNAUTHORIZED
+        detail:
+          type: string
+          example: This is some example detail.
+        field:
+          type: string
+          example: This is some example field.
+
+    UnauthorizedError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User is Unauthorized to Perform Operation.
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubError'
+        requestId:
+          type: string
+          format: uuid
+          example: a31a951b-61ce-4458-913d-0896b1af3cae
+        data:
+          type: object
+
+    ForbiddenError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Request forbidden.
+        requestId:
+          type: string
+          format: uuid
+          example: a31a951b-61ce-4458-913d-0896b1af3cae
+
+    NotFoundError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Not Found
+        requestId:
+          type: string
+          format: uuid
+          example: a31a951b-61ce-4458-913d-0896b1af3cae
+
+    BadRequestError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Bad Request
+        requestId:
+          type: string
+          format: uuid
+          example: a31a951b-61ce-4458-913d-0896b1af3cae
+
+    InternalServerError:
+      type: object
+      required:
+        - requestId
+      properties:
+        message:
+          type: string
+          example: Default Server Error
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubError'
+        requestId:
+          type: string
+          format: uuid
+          example: a31a951b-61ce-4458-913d-0896b1af3cae
+        data:
+          type: object
+
+    # API SCHEMAS
+
+    AvailabilityDay:
+      type: object
+      required:
+        - day
+        - available
+      properties:
+        day:
+          type: string
+          format: date
+          example: 2021-06-12
+        available:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityTime'
+
+    AvailabilityTime:
+      type: object
+      required:
+        - fromTime
+        - toTime
+      properties:
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+
+    GetAvailabilityResponse:
+      type: object
+      required:
+        - arenaId
+        - availability
+        - canUseMembership
+        - isMember
+      properties:
+        arenaId:
+          type: string
+          format: uuid
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+        availability:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityDay'
+        canUseMembership:
+          type: boolean
+        isMember:
+          type: boolean
+        remainingMembershipReservations:
+          type: integer
+
+    UserMembership:
+      type: object
+      required:
+        - membershipId
+        - membershipTierId
+        - membershipTierName
+        - membershipTierSku
+        - endDate
+        - maxReservationHours
+        - maxActiveReservationsPerMonth
+        - isMember
+        - canUseMembership
+        - remainingMembershipReservations
+      properties:
+        membershipId:
+          type: string
+          format: uuid
+          example: a46e2059-adab-4c29-97b6-bc97249660ab
+        membershipTierId:
+          type: string
+          format: uuid
+          example: c2c58aa2-5e2e-4d8f-9b94-afee516d874e
+        membershipTierName:
+          type: string
+          example: Belong Legends
+        membershipTierSku:
+          type: string
+          example: P101001
+        endDate:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        maxReservationHours:
+          type: integer
+          example: 4
+        maxActiveReservationsPerMonth:
+          type: integer
+          example: 3
+        isMember:
+          type: boolean
+          example: true
+        canUseMembership:
+          type: boolean
+          example: true
+        remainingMembershipReservations:
+          type: integer
+          example: 3
+
+    UserInfo:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        id:
+          type: string
+          format: uuid
+          example: 9fbe8ede-df67-4704-ac57-156eb3daca8f
+        name:
+          type: string
+          example: Howard
+        familyName:
+          type: string
+          example: Hugh
+        membership:
+          type: object
+          $ref: '#/components/schemas/UserMembership'
+        accepted:
+          type: boolean
+          example: false
+        owner:
+          type: boolean
+          example: false
+
+    Booking:
+      type: object
+      required:
+        - id
+        - canAddNotes
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a6e67439-dd4d-4d6e-8e6c-cf980aebfea6
+        status:
+          type: string
+          enum:
+            - ordering
+            - confirmed
+            - checkedIn
+            - completed
+            - canceled
+            - abandoned
+          example: ordering
+        type:
+          type: string
+          enum:
+            - stations
+            - parties
+            - events
+            - tournaments
+            - maintenance
+          example: stations
+        userInfo:
+          type: object
+          $ref: '#/components/schemas/UserInfo'
+        invite:
+          type: boolean
+          default: false
+        canAddNotes:
+          type: boolean
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        extending:
+          type: boolean
+          default: false
+        reducing:
+          type: boolean
+          default: false
+
+    Seat:
+      type: object
+      required:
+        - id
+        - reservedId
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 4814656e-1688-46d8-9eaf-c3819b030994
+        reservedId:
+          type: string
+          format: uuid
+          example: 30056b44-2ccb-4a50-a7c2-043dd7adb652
+        number:
+          type: integer
+        slug:
+          type: string
+        sectionName:
+          type: string
+        sectionId:
+          type: string
+        type:
+          type: string
+          enum:
+            - station
+            - couch
+            - table
+
+    AvailabilitySlot:
+      type: object
+      required:
+        - fromTime
+        - toTime
+        - seats
+      properties:
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        seatCount:
+          type: integer
+        seats:
+          type: object
+          $ref: '#/components/schemas/Seat'
+
+    SeatReservation:
+      type: object
+      required:
+        - id
+        - arenaId
+        - fromTime
+        - toTime
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7a7c4d05-030b-48cf-969f-64e03186488f
+        arenaId:
+          type: string
+          format: uuid
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+        status:
+          type: string
+          enum:
+            - success
+            - unavailable
+            - reserved
+            - held
+            - expired
+            - canceled
+            - completed
+        availability:
+          type: object
+          $ref: '#/components/schemas/AvailabilityDay'
+        reserved:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilitySlot'
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        seatCount:
+          type: integer
+        originalFromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        originalToTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+
+    Price:
+      type: object
+      required:
+        - currency
+        - amount
+      properties:
+        currency:
+          type: string
+          example: USD
+        amount:
+          type: integer
+          example: 100
+
+    SeatPrice:
+      type: object
+      required:
+        - name
+        - fromTime
+        - toTime
+        - unitPrice
+        - sku
+      properties:
+        name:
+          type: string
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        unitPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        sku:
+          type: string
+          example: P101001
+
+    Pricing:
+      type: object
+      required:
+        - prices
+      properties:
+        prices:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatPrice'
+
+    LineItemMetadata:
+      type: object
+      required:
+        - sku
+        - name
+      properties:
+        sku:
+          type: string
+          example: P001
+        name:
+          type: string
+          example: Game Station
+
+    MeasurementUnit:
+      type: object
+      required:
+        - type
+        - time_unit
+      properties:
+        type:
+          type: string
+          example: TYPE_TIME
+        time_unit:
+          type: string
+          example: GENERIC_HOUR
+
+    QuantityUnit:
+      type: object
+      required:
+        - measurement_unit
+        - precision
+      properties:
+        measurement_unit:
+          type: object
+          $ref: '#/components/schemas/MeasurementUnit'
+        precision:
+          type: integer
+          example: 3
+
+    LineItemDiscount:
+      type: object
+      required:
+        - uid
+        - discountUid
+        - appliedMoney
+      properties:
+        uid:
+          type: string
+          example: NIXLD3OF7xDhdAv6PUKuZB
+        discountUid:
+          type: string
+          format: uuid
+          example: b2433542-31c3-4cdd-b52e-6cae8c844305
+        appliedMoney:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    LineItemAppliedTax:
+      type: object
+      required:
+        - uid
+        - taxUid
+        - appliedMoney
+      properties:
+        uid:
+          type: string
+          example: NIXLD3OF7xDhdAv6PUKuZB
+        taxUid:
+          type: string
+          format: uuid
+          example: b2433542-31c3-4cdd-b52e-6cae8c844305
+        appliedPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    LineItem:
+      type: object
+      required:
+        - uid
+        - quantity
+        - name
+        - basePrice
+        - grossSalesPrice
+        - totalTaxPrice
+        - totalPrice
+        - variationTotalPrice
+      properties:
+        uid:
+          type: string
+          example: EAhzCQQFZ0f3PHJ0KOb1N
+        quantity:
+          type: number
+          example: 1.5
+        name:
+          type: string
+          example: Hourly rate
+        basePrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        grossSalesPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalTaxPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalDiscountPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        variationTotalPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        metadata:
+          type: object
+          $ref: '#/components/schemas/LineItemMetadata'
+        quantityUnit:
+          type: object
+          $ref: '#/components/schemas/QuantityUnit'
+        appliedDiscounts:
+          type: object
+          $ref: '#/components/schemas/LineItemDiscount'
+        itemType:
+          type: string
+          enum:
+            - ITEM
+            - CUSTOM_AMOUNT
+            - GIFT_CARD
+        appliedTaxes:
+          type: object
+          $ref: '#/components/schemas/LineItemAppliedTax'
+
+    NetAmounts:
+      type: object
+      required:
+        - totalTaxPrice
+        - taxPrice
+        - discountPrice
+        - tipPrice
+        - serviceChargePrice
+      properties:
+        totalTaxPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        taxPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        discountPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        tipPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        serviceChargePrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    Source:
+      type: object
+      properties:
+        name:
+          type: string
+
+    Card:
+      type: object
+      properties:
+        card_brand:
+          type: string
+          example: VISA
+        fingerprint:
+          type: string
+        last_4:
+          type: string
+          example: 1111
+        exp_month:
+          type: integer
+        prepaid_type:
+          type: string
+        exp_year:
+          type: integer
+        card_type:
+          type: string
+        bin:
+          type: string
+
+    CardDetails:
+      type: object
+      properties:
+        card:
+          type: object
+          $ref: '#/components/schemas/Card'
+        entry_method:
+          type: string
+          enum:
+            - SWIPED
+            - KEYED
+            - EMV
+            - ON_FILE
+            - CONTACTLESS
+        status:
+          type: string
+          enum:
+            - AUTHORIZED
+            - CAPTURED
+            - VOIDED
+            - FAILED
+
+    Tender:
+      type: object
+      required:
+        - amount_money
+      properties:
+        amount_money:
+          type: object
+          $ref: '#/components/schemas/Price'
+        card_details:
+          type: object
+          $ref: '#/components/schemas/CardDetails'
+        created_at:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        id:
+          type: string
+          example: DlSq5EYy6TUbu6NagwHTNcCzvF6YY
+        location_id:
+          type: string
+          example: LRAXNEBWKKQJW
+        payment_id:
+          type: string
+          example: DlSq5EYy6TUbu6NagwHTNcCzvF6YY
+        transaction_id:
+          type: string
+          example: p0J08ehTsP4A4lD0XENS62gAEz9YY
+        type:
+          type: string
+          enum:
+            - CARD
+            - CASH
+            - THIRD_PARTY_CARD
+            - SQUARE_GIFT_CARD
+            - NO_SALE
+            - WALLET
+            - OTHER
+
+    OrderDiscountMetadata:
+      type: object
+      properties:
+        code:
+          type: string
+          example: Belong2021
+
+    OrderDiscount:
+      type: object
+      properties:
+        uid:
+          type: string
+          format: uuid
+          example: b2433542-31c3-4cdd-b52e-6cae8c844305
+        applied_money:
+          type: object
+          $ref: '#/components/schemas/Price'
+        metadata:
+          type: object
+          $ref: '#/components/schemas/OrderDiscountMetadata'
+        percentage:
+          type: string
+          example: 10.00
+        scope:
+          type: string
+          enum:
+            - OTHER_DISCOUNT_SCOPE
+            - LINE_ITEM
+            - ORDER
+        name:
+          type: string
+          example: Belong2021 - 10.00%
+        type:
+          type: string
+          enum:
+            - UNKNOWN_DISCOUNT
+            - FIXED_PERCENTAGE
+            - FIXED_AMOUNT
+            - VARIABLE_PERCENTAGE
+            - VARIABLE_AMOUNT
+
+    PricingOptions:
+      type: object
+      properties:
+        auto_apply_discounts:
+          type: boolean
+          example: true
+        auto_apply_taxes:
+          type: boolean
+          example: true
+
+    OrderTax:
+      type: object
+      properties:
+        applied_money:
+          type: object
+          $ref: '#/components/schemas/Price'
+        auto_applied:
+          type: boolean
+          example: true
+        catalog_object_id:
+          type: string
+          example: nUXvdsIItfKko0dbYtY58C
+        catalog_version:
+          type: integer
+        metadata:
+          type: object
+        name:
+          type: string
+        percentage:
+          type: string
+          example: 10.00
+        scope:
+          type: string
+          enum:
+            - OTHER_TAX_SCOPE
+            - LINE_ITEM
+            - ORDER
+        type:
+          type: string
+          enum:
+            - UNKNOWN_TAX
+            - ADDITIVE
+            - INCLUSIVE
+        uid:
+          type: string
+          example: qSdkOOOernlVQqsJ94SPjB
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          example: Jk42pS5XCn69oLwficer67ZvJIPZY
+        locationId:
+          type: string
+          example: L0611V96XE3TS
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineItem'
+        createdAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        closedAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        state:
+          type: string
+          enum:
+            - OPEN
+            - COMPLETED
+            - CANCELED
+            - DRAFT
+        version:
+          type: integer
+        totalTaxPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalDiscountPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalTipPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        totalServiceChargePrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        netAmounts:
+          type: object
+          $ref: '#/components/schemas/NetAmounts'
+        source:
+          type: object
+          $ref: '#/components/schemas/Source'
+        referenceId:
+          type: string
+          format: uuid
+          example: dd928092-bb4f-40d4-b9e5-83734f9cc902
+        tenders:
+          type: array
+          $ref: '#/components/schemas/Tender'
+        discounts:
+          type: array
+          $ref: '#/components/schemas/OrderDiscount'
+        pricingOptions:
+          type: object
+          $ref: '#/components/schemas/PricingOptions'
+        taxes:
+          type: array
+          $ref: '#/components/schemas/OrderTax'
+
+    POSPayment:
+      type: object
+      required:
+        - type
+        - userId
+        - date
+        - totalPrice
+      properties:
+        type:
+          type: string
+          enum:
+            - pos
+        userId:
+          type: string
+          format: uuid
+          example: 60b267cc-234a-4a2f-a986-786e0988a0f4
+        date:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        totalPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    OnlinePayment:
+      type: object
+      required:
+        - type
+        - totalPrice
+      properties:
+        type:
+          type: string
+          enum:
+            - online
+            - posCash
+        id:
+          type: string
+          example: y7bVl4njrWAnfDwmz19izB
+        status:
+          type: string
+          enum:
+            - APPROVED
+            - PENDING
+            - COMPLETED
+            - CANCELED
+            - FAILED
+        createdAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        totalPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+        receiptNumber:
+          type: string
+        receiptURL:
+          type: string
+        refundedPrice:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    Payment:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/POSPayment'
+        - $ref: '#/components/schemas/OnlinePayment'
+
+    Note:
+      type: object
+      properties:
+        content:
+          type: string
+
+    MaintenanceReason:
+      type: object
+      properties:
+        content:
+          type: string
+
+    InvitedUsers:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserInfo'
+        uninvitedUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserInfo'
+        declinedUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserInfo'
+        acceptedUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserInfo'
+
+    Refund:
+      type: object
+      properties:
+        id:
+          type: string
+          example: bP9mAsEMYPUGjjGNaNO5ZDVyLhSZY
+        status:
+          type: string
+          enum:
+            - PENDING
+            - COMPLETED
+            - REJECTED
+            - FAILED
+        amountMoney:
+          type: object
+          $ref: '#/components/schemas/Price'
+        paymentId:
+          type: string
+          example: bP9mAsEMYPUGjjGNaNO5ZDVyLhSZY
+        orderId:
+          type: string
+          example: 9ltv0bx5PuvGXUYHYHxYSKEqC3IZY
+        createdAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        locationId:
+          type: string
+          example: L0611V96XE3TS
+        reason:
+          type: string
+        issued:
+          type: boolean
+          example: true
+
+    Cancellation:
+      type: object
+      properties:
+        reason:
+          type: string
+        date:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        userId:
+          type: string
+          format: uuid
+          example: f58bca66-8c2a-4cf9-9b30-720f7e2bc6a4
+
+    Discount:
+      type: object
+      required:
+        - id
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7b4d97dc-5724-4d2b-ab2c-ce38107bdb4e
+        code:
+          type: string
+          example: Belong2021
+        percentage:
+          type: number
+          example: 10.0
+        amount:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    CheckIn:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        userId:
+          type: string
+          format: uuid
+          example: 022c5c90-46e3-4595-ba14-c092982bd8ee
+
+    Completed:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        userId:
+          type: string
+          format: uuid
+          example: 022c5c90-46e3-4595-ba14-c092982bd8ee
+        automated:
+          type: boolean
+          example: true
+
+    ArenaAbout:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          example: Bradford-Rams/hero.jpg
+        text:
+          type: string
+          example: Some text.
+
+    ArenaStatus:
+      type: object
+      properties:
+        backgroundColor:
+          type: string
+          example: #ffffff
+        allowBooking:
+          type: boolean
+        allowDetail:
+          type: boolean
+        test:
+          type: string
+          example: Coming Soon
+        allowedBookingDate:
+          type: string
+        textColor:
+          type: string
+          example: #000000
+
+    Coordinate:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          example: 40.76036
+        longitude:
+          type: number
+          example: -73.97345
+
+    ArenaLocation:
+      type: object
+      properties:
+        country:
+          type: string
+          example: USA
+        address:
+          type: string
+        address2:
+          type: string
+        city:
+          type: string
+          example: Dallas
+        postalCode:
+          type: string
+          example: 10022
+        coordinates:
+          type: object
+          $ref: '#/components/schemas/Coordinate'
+        state:
+          type: string
+          example: TX
+
+    SocialLink:
+      type: object
+      properties:
+        link:
+          type: string
+          example: https://twitter.com/BelongArenas
+        name:
+          type: string
+          example: belongArenas
+        id:
+          type: string
+          example: Twitter
+
+    ArenaContact:
+      type: object
+      properties:
+        phone:
+          type: string
+          example: Coming Soon!
+        social:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialLink'
+        email:
+          type: string
+          format: email
+          example: bradfordrams@belongArenas.com
+
+    ArenaTheme:
+      type: object
+      properties:
+        primaryColor:
+          type: string
+          example: #0068ff
+        themeHeaderImageUrl:
+          type: string
+          example: #ffffff
+        heroImageUrl:
+          type: string
+          example: Bradford-Rams/hero.jpg
+        logoImageUrl:
+          type: string
+          example: Bradford-Rams/logo.svg
+        logoImageMobileUrl:
+          type: string
+          example: Bradford-Rams/logo.png
+
+    ArenaHour:
+      type: object
+      properties:
+        start:
+          type: number
+          example: 800
+        end:
+          type: string
+          example: 2200
+        day:
+          type: string
+          example: Sunday
+
+    ArenaAvailability:
+      type: object
+      properties:
+        additionalInfo:
+          type: string
+          example: Holiday business hours may vary.
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArenaHour'
+        timezone:
+          type: string
+          example: EST
+        tz:
+          type: string
+          example: America/New_York
+
+    Arena:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a373f91c-2391-48b6-ba2c-89f7a880b883
+        locationId:
+          type: string
+          example: L0611V96XE3TS
+        slug:
+          type: string
+          example: Dallas-Areana
+        infoText:
+          type: string
+          example: More information coming soon.
+        name:
+          type: string
+          example: Bradford Rams
+        about:
+          type: object
+          $ref: '#/components/schemas/ArenaAbout'
+        status:
+          type: object
+          $ref: '#/components/schemas/ArenaStatus'
+        location:
+          type: object
+          $ref: '#/components/schemas/ArenaLocation'
+        contact:
+          type: object
+          $ref: '#/components/schemas/ArenaContact'
+        theme:
+          type: object
+          $ref: '#/components/schemas/ArenaTheme'
+        availability:
+          type: object
+          $ref: '#/components/schemas/ArenaAvailability'
+
+    BookingMembershipBenefits:
+      type: object
+      properties:
+        appliedMoney:
+          type: object
+          $ref: '#/components/schemas/Price'
+        applicableHours:
+          type: number
+          example: 1.5
+        appliedToBaseSku:
+          type: string
+          example: P001
+        appliedToSku:
+          type: string
+          example: P00101
+
+    BookingMembership:
+      type: object
+      properties:
+        canUseMembership:
+          type: boolean
+          example: false
+        useMembership:
+          type: boolean
+          example: false
+        applied:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingMembershipBenefits'
+
+    Abandonment:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+        userId:
+          type: string
+          format: uuid
+          example: 022c5c90-46e3-4595-ba14-c092982bd8ee
+
+    BookingDetail:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/Booking'
+        seatReservation:
+          type: object
+          $ref: '#/components/schemas/SeatReservation'
+        pricing:
+          type: object
+          $ref: '#/components/schemas/Pricing'
+        order:
+          type: object
+          $ref: '#/components/schemas/Order'
+        orderHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        payment:
+          type: object
+          $ref: '#/components/schemas/Payment'
+        paymentHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+        note:
+          type: object
+          $ref: '#/components/schemas/Note'
+        maintenanceReason:
+          type: object
+          $ref: '#/components/schemas/MaintenanceReason'
+        invited:
+          type: object
+          $ref: '#/components/schemas/InvitedUsers'
+        refund:
+          type: object
+          $ref: '#/components/schemas/Refund'
+        refundHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/Refund'
+        cancellation:
+          type: object
+          $ref: '#/components/schemas/Cancellation'
+        discounts:
+          type: object
+          $ref: '#/components/schemas/Discount'
+        checkIn:
+          type: object
+          $ref: '#/components/schemas/CheckIn'
+        completed:
+          type: object
+          $ref: '#/components/schemas/Completed'
+        arena:
+          type: object
+          $ref: '#/components/schemas/Arena'
+        membership:
+          type: object
+          $ref: '#/components/schemas/BookingMembership'
+        abandonment:
+          type: object
+          $ref: '#/components/schemas/Abandonment'
+
+    BookingRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 0115bdc2-fbfb-4067-b5b6-385f5b34af07
+          description: Booking Id
+        owner:
+          type: boolean
+          description: Set the caller as the booking owner?
+          default: true
+
+    SeatReservationRequest:
+      type: object
+      required:
+        - arenaId
+        - fromTime
+        - toTime
+      properties:
+        arenaId:
+          type: string
+          format: uuid
+          example: 0a953dee-dcf4-49cf-bec8-1675a2cfb40c
+          description: Arena ID
+        fromTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+          description: Booking start time
+        toTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:15:00.000Z
+          description: Booking end time
+        mode:
+          type: number
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+          default: 0
+          description: Booking Mode (?)
+        seats:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Specific seat ids - for use by SWARM - mutually exclusive with seatCount
+        seatCount:
+          type: integer
+          description: Seat count - for use by Gamer Portal - mutually exclusive with seats
+
+    OrderRequest:
+      type: object
+      required:
+        - locationId
+      properties:
+        id:
+          type: string
+          example: Jk42pS5XCn69oLwficer67ZvJIPZY
+          description: Order Id
+        locationId:
+          type: string
+          example: L0611V96XE3TS
+          description: Arena location Id
+
+    MembershipRequest:
+      type: object
+      properties:
+        useMembership:
+          type: boolean
+          default: false
+          description: Apply membership benefits to the booking, if possible
+
+    CreateBookingRequest:
+      type: object
+      required:
+        - seatReservation
+        - order
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingRequest'
+        bookingType:
+          type: string
+          enum:
+            - maintenance
+            - stations
+        seatReservation:
+          type: object
+          $ref: '#/components/schemas/SeatReservationRequest'
+        order:
+          type: object
+          $ref: '#/components/schemas/OrderRequest'
+        membership:
+          type: object
+          $ref: '#/components/schemas/MembershipRequest'
+
+    ConfirmSeatReservationRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 4478171f-3610-475a-bf89-a660f33a697c
+
+    PayerInfo:
+      type: object
+      properties:
+        emailAddress:
+          type: string
+          format: email
+          example: me@mail.com
+          description: Payer email
+        phoneNumber:
+          type: string
+          example: +18095488326
+          description: Payer phone number
+        givenName:
+          type: string
+          example: Michael
+          description: Payer name
+        familyName:
+          type: string
+          example: Everett
+          description: Payer last name
+
+    ConfirmPaymentCashDetails:
+      type: object
+      required:
+        - buyerSuppliedMoney
+      properties:
+        buyerSuppliedMoney:
+          type: object
+          $ref: '#/components/schemas/Price'
+
+    ConfirmOnlinePaymentRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - online
+            - posCash
+          default: online
+          description: Payment type
+        userId:
+          type: string
+          format: uuid
+          description: User Id making the payment
+          example: 639fa7ea-5cef-4787-a193-564da5516bc9
+        payerId:
+          type: string
+          description: Square payer id
+          example: y7bVl4njrWAnfDwmz19izB
+        payer:
+          type: object
+          $ref: '#/components/schemas/PayerInfo'
+        cardNonce:
+          type: string
+          description: Square card nonce
+        cardId:
+          type: string
+          description: Square card id
+        giftCardId:
+          type: string
+          description: Square gift card PAN
+        saveCard:
+          type: boolean
+          description: Should Payments service save this card after successful payment?
+        cashDetails:
+          type: object
+          $ref: '#/components/schemas/ConfirmPaymentCashDetails'
+
+    ConfirmPOSPaymentRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - pos
+          default: pos
+        userId:
+          type: string
+          format: uuid
+          description: User Id accepting the payment
+          example: 639fa7ea-5cef-4787-a193-564da5516bc9
+
+    ConfirmPaymentRequest:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/ConfirmOnlinePaymentRequest'
+        - $ref: '#/components/schemas/ConfirmPOSPaymentRequest'
+
+    ConfirmBookingRequest:
+      type: object
+      required:
+        - booking
+        - seatReservation
+        - order
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingRequest'
+        seatReservation:
+          type: object
+          $ref: '#/components/schemas/ConfirmSeatReservationRequest'
+        order:
+          type: object
+          $ref: '#/components/schemas/OrderRequest'
+        membership:
+          type: object
+          $ref: '#/components/schemas/MembershipRequest'
+        payment:
+          type: object
+          $ref: '#/components/schemas/ConfirmPaymentRequest'
+
+    BookingListing:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDetail'
+        paginationToken:
+          type: string
+          description: Pagination token
+
+    BookingIdRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3b42ba2a-2691-42a4-9487-9fd3a3799751
+          description: Booking Id
+
+    BookingNoteRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        note:
+          type: object
+          $ref: '#/components/schemas/Note'
+
+    BookingMaintenanceRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        maintenanceReason:
+          type: object
+          $ref: '#/components/schemas/Note'
+
+    InviteRequest:
+      type: object
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+            format: email
+          description: Email addresses to invite to the booking
+
+    BookingInviteRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        invited:
+          type: object
+          $ref: '#/components/schemas/InviteRequest'
+
+    BookingUninviteRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        uninvited:
+          type: object
+          $ref: '#/components/schemas/InviteRequest'
+
+    BookingInviteAcknowledgeRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+
+    CancellationRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Cancellation reason
+        date:
+          type: string
+          format: date
+          example: 2021-06-12T10:00:00.000Z
+        userId:
+          type: string
+          format: uuid
+          example: 6a3f5354-1445-4ae9-a00d-e7606e057426
+
+    BookingCancellationRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        cancellation:
+          type: object
+          $ref: '#/components/schemas/CancellationRequest'
+
+    ValidateBooking:
+      type: object
+      required:
+        - bookingId
+        - startTime
+        - endTime
+        - isOwner
+        - status
+        - type
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          example: a3d914b1-df65-40ea-82e9-a8c9cd5bbf0d
+          description: Booking Id
+        arenaId:
+          type: string
+          format: uuid
+          example: 2d6c5f76-8912-4335-a2e9-66b308e5b509
+          description: Arena Id
+        startTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+          description: Booking start time
+        endTime:
+          type: string
+          format: date-time
+          example: 2021-06-12T10:00:00.000Z
+          description: Booking start time
+        isOwner:
+          type: boolean
+          description: Is the calling user the booking owner?
+        status:
+          type: string
+          enum:
+            - confirmed
+            - checkedIn
+            - completed
+            - cancelled
+        type:
+          type: string
+          enum:
+            - stations
+            - parties
+            - events
+            - tournaments
+            - maintenance
+
+    ArenaBookingsResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDetail'
+
+    SetBookingOwnerRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        membership:
+          type: object
+          $ref: '#/components/schemas/MembershipRequest'
+
+    AddDiscountRequest:
+      type: object
+      required:
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 55d335c5-6b57-4d35-b1b9-fcdeaf1d3b72
+          description: Discount id
+        code:
+          type: string
+          example: Belong2021
+          description: Discount code
+
+    AddBookingDiscountRequest:
+      type: object
+      properties:
+        booking:
+          type: object
+          $ref: '#/components/schemas/BookingIdRequest'
+        discount:
+          type: object
+          $ref: '#/components/schemas/AddDiscountRequest'
+
+    RemoveBookingDiscountRequest:
+      type: object
+      properties:
+        discounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+
+  securitySchemes:
+    JWTAuth:
+      scheme: bearer
+      bearerFormat: JWT
+      type: http
+      description: |-
+        Example:
+        > Authorization: Bearer <token>
+
+security:
+  - JWTAuth: [ ]
